@@ -58,8 +58,8 @@ $$
 
 ​	这段代码以下问题：
 
- 	1. 复杂度过高
- 	2. 可能会出现src中多个点被映射到同一个dst的点中
+   	1. 复杂度过高
+   	2. 可能会出现src中多个点被映射到同一个dst的点中
 
 ​    就复杂度高这一点上，可以使用KDTree或者近似最近邻搜索来优化
 
@@ -153,5 +153,48 @@ $$
       return T, distances, i
   ```
 
-  值得注意的一点是在本段代码中，src为4*N而非3*N，其前3行为点，第4行为每次经矩阵变换后的偏差值
+  值得注意的一点是在本段代码中，src为4*N而非3*N，其前3行为点，第4行为每次经矩阵变换后的偏差值，这一点尚有疑问，似乎在数学推导中没有直接体现这一步。
 
+
+
+# ICP的改进之一——KDTree&ANN
+
+即基于KDTree的近似最近邻搜索
+
+KDTree的大致思想类似于二叉搜索树：
+
+* 节点的域：
+  * node data：数据矢量
+  * range：改节点所代表的空间范围
+  * split：一个整数，垂直于分割超平面的方向轴序号
+  * left：超平面左子空间构建的KDTree
+  * right
+  * parent
+
+* 建树：类似于二叉树
+  * 方法一，以各维度分别为第一、第二关键字，以此类推，这样就能够比较点的大小，从而划分空间
+  * 方法二，第i次分割分别以i%n维为关键字进行点的比较。
+  * 方法三，考虑在各个维度上各点的数据方差，选择方差中最大的值，对应维为split域的值。
+  * ...
+* 搜索，就和二叉树类似，通过建树时的点的比较方法在书上找到一条搜索路径，在路径上找到最近点
+
+在此种算法下，对于规模为N的点集，虽然不能保证每个点最终找到最近点，但是时间复杂度由原先的$o(N^2)$下降到了$o(NlogN)$。
+
+# ICP算法的其他改进
+
+## 基于不同loss的变种
+
+* point to plane，考虑的不再是点到对应的最近点，而是点到一个相应的平面的最近距离。
+
+  $loss=\sum((R*p_i+t-q_i)*n_i)$，n为对应平面的法向量。但其优化是一个非线性问题，速度较慢，可以在一定假设下近似为线性问题求解，方法与point to point一致，最后表达式依然是基于SVD求解，可以参考[这里](https://www.jianshu.com/p/57eecfa9ca6f?utm_campaign=maleskine&utm_content=note&utm_medium=seo_notes&utm_source=recommendation)。
+
+* plane to plane，只考虑原点云与目标点云局部结构
+
+* generalized ICP，综合了point to point，point to plane和plane to plane
+
+* normal ICP，考虑了法向量和局部向量
+
+## 基于实际应用的一些变种
+
+* colored ICP，针对RGB点云，是基于point to plane上的进一步改进，这个算法可能比较重要
+* Symmetric ICP，对于point to plane的改进，将$n_i$改为$n_{pi}+n_{qi}$
